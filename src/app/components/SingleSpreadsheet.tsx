@@ -1,6 +1,9 @@
 import React from 'react'
 import Spreadsheet from 'react-spreadsheet'
 import { SpreadsheetData, SpreadsheetRow } from '../types'
+import { useCopilotAction, useCopilotReadable } from '@copilotkit/react-core'
+import { canonicalSpreadsheetData } from '../utils/canonicalSpreadsheetData'
+import { PreviewSpreadsheetChanges } from './PreviewSpreadsheetChanges'
 
 interface MainAreaProps {
     spreadsheet: SpreadsheetData
@@ -8,7 +11,116 @@ interface MainAreaProps {
 }
 
 const SingleSpreadsheet = ({ spreadsheet, setSpreadsheet }: MainAreaProps) => {
-    
+
+    // suggestSpreadsheetOveride
+    useCopilotAction({
+        name: 'suggestSpreadsheetOveride',
+        description: 'Suggest an overide of the current spreadsheet',
+        parameters: [
+            {
+                name: 'rows',
+                type: 'object[]',
+                description: 'The rows of the spreadsheet',
+                attributes: [
+                    {
+                        name: 'cells',
+                        type: 'object[]',
+                        description: 'The cells of the row',
+                        attributes: [
+                            {
+                                name: 'value',
+                                type: 'string',
+                                description: 'The value of the cell'
+                            }
+                        ]
+                    }
+                ]
+            },
+            {
+                name: 'title',
+                type: 'string',
+                description: 'the title of the spreadsheet',
+                required: false
+            }
+        ],
+        render: (props) => {
+            const { rows } = props.args
+            const newRows = canonicalSpreadsheetData(rows)
+            return (
+                <PreviewSpreadsheetChanges
+                    preCommitTitle='Replace contents'
+                    postCommitTitle='Changes commiter'
+                    newRows={newRows}
+                    commit={(rows: any) => {
+                        const updateSpreadsheet: SpreadsheetData = {
+                            title: spreadsheet.title,
+                            rows: rows
+                        }
+                        setSpreadsheet(updateSpreadsheet)
+                    }}
+                />
+            )
+        },
+        handler: ({ rows, title }) => {
+            // Do Nothing
+            // The preview component will optionally hide commiting the changes.
+        }
+    })
+
+    // appendToSpreadsheet
+    useCopilotAction({
+        name: 'appendToSpreadsheet',
+        description: 'Append rows to the current spreadsheet',
+        parameters: [
+            {
+                name: 'rows',
+                type: 'object[]',
+                description: 'The new rows of the spreadsheet',
+                attributes: [
+                    {
+                        name: 'cells',
+                        type: 'object[]',
+                        description: 'The cells of the row',
+                        attributes: [
+                            {
+                                name: 'value',
+                                type: 'string',
+                                description: 'The value of the cell'
+                            }
+                        ]
+                    }
+                ]
+            }
+        ],
+        render: (props) => {
+            const status = props.status
+            const { rows } = props.args
+            const newRows = canonicalSpreadsheetData(rows)
+            return (
+                <div>
+                    <p>Status: {status}</p>
+                    <Spreadsheet
+                        data={newRows}
+                    />
+                </div>
+            )
+        },
+        handler: ({ rows }) => {
+            const canonicalRows = canonicalSpreadsheetData(rows)
+            const updatedSpreadsheet: SpreadsheetData = {
+                title: spreadsheet.title,
+                rows: [...spreadsheet.rows, ...canonicalRows]
+            }
+            setSpreadsheet(updatedSpreadsheet)
+        }
+    })
+
+    // hook for providing application state
+    useCopilotReadable({
+        description: "This is the current spreadsheet: ",
+        value: JSON.stringify(spreadsheet)
+    })
+
     // adds a new row to the spreadsheet
     const addRow = () => {
         const numberOfColumns = spreadsheet.rows[0].length
